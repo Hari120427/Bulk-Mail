@@ -2,10 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
-require("dotenv").config(); // Load environment variables
 
 const app = express();
-// CRITICAL FIX: Use the port Render assigns, or 5001 if local
+// PORT: Render gives a port, otherwise use 5001 locally
 const PORT = process.env.PORT || 5001;
 
 /* -------------------- MIDDLEWARE -------------------- */
@@ -18,90 +17,62 @@ let credData = null;
 /* -------------------- MONGODB CONNECTION -------------------- */
 console.log("🔄 Connecting to MongoDB...");
 
-// CRITICAL FIX: Use environment variable for the connection string
-const mongoURI = process.env.MONGO_URI;
+// MAGIC LINE: Uses Render's secret if available, otherwise uses your hardcoded link
+const mongoURI = process.env.MONGO_URI || "mongodb+srv://Hari:Hari123@cluster0.csaqusk.mongodb.net/passkey";
 
-if (!mongoURI) {
-  console.error("❌ Error: MONGO_URI environment variable is not set.");
-} else {
-  mongoose
-    .connect(mongoURI, {
-      serverSelectionTimeoutMS: 30000,
-    })
-    .then(async () => {
-      console.log("✅ MongoDB connected successfully");
-      await loadCredentials();
-    })
-    .catch((err) => {
-      console.error("❌ MongoDB connection failed:", err.message);
-    });
-}
-
-mongoose.connection.on("error", (err) => {
-  console.error("❌ Mongoose runtime error:", err.message);
-});
+mongoose
+  .connect(mongoURI, {
+    serverSelectionTimeoutMS: 30000,
+  })
+  .then(async () => {
+    console.log("✅ MongoDB connected successfully");
+    await loadCredentials();
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB connection failed:", err.message);
+  });
 
 /* -------------------- SCHEMA -------------------- */
 const credentialSchema = new mongoose.Schema(
-  {
-    user: String,
-    pass: String,
-  },
+  { user: String, pass: String },
   { collection: "bulkmail" }
 );
-
 const Credential = mongoose.model("Credential", credentialSchema);
 
-/* -------------------- LOAD EMAIL CREDENTIALS -------------------- */
+/* -------------------- LOAD CREDENTIALS -------------------- */
 async function loadCredentials() {
   try {
-    console.log("🔄 Loading email credentials...");
+    const data = await Credential.findOne();
+    if (!data) throw new Error("No credentials found");
 
-    const data = await Credential.find().limit(1);
-    if (!data.length) throw new Error("No credentials found");
-
-    credData = data[0].toObject();
-
-    console.log("✅ Credentials loaded:", {
-      user: credData.user,
-      pass: "***",
-    });
+    credData = data.toObject();
 
     transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
-      auth: {
-        user: credData.user,
-        pass: credData.pass,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
+      auth: { user: credData.user, pass: credData.pass },
+      tls: { rejectUnauthorized: false },
     });
 
     await transporter.verify();
-    console.log("✅ Email transporter ready");
+    console.log(`✅ Mail Service Ready: ${credData.user}`);
   } catch (err) {
-    console.error("❌ Failed to load credentials:", err.message);
+    console.error("❌ Credential Error:", err.message);
   }
 }
 
-/* -------------------- SEND MAIL -------------------- */
+/* -------------------- SEND MAIL ROUTE -------------------- */
 app.post("/sendmail", async (req, res) => {
+  if (!transporter) return res.status(503).json({ message: "Service not ready" });
+
   const { msg, emaillist } = req.body;
-
-  if (!transporter) {
-    return res.status(503).json({ message: "Email service not ready" });
-  }
-
   const results = [];
 
-  // Consider using Promise.all here for speed, but this loop works fine for now
   for (const email of emaillist) {
     try {
       await transporter.sendMail({
-        from: `"Bulk Mail App" <${credData.user}>`,
+        from: `"Bulk Mail" <${credData.user}>`,
         to: email,
         subject: "Bulk Mail",
         text: msg,
