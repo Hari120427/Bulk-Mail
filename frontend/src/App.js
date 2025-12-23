@@ -1,7 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
-import "./App.css"; // Ensure you keep your existing CSS file
 
 function App() {
   const [msg, setMsg] = useState("");
