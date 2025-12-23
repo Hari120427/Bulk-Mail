@@ -2,9 +2,11 @@ const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
+require("dotenv").config(); // Load environment variables
 
 const app = express();
-const PORT = 5001;
+// CRITICAL FIX: Use the port Render assigns, or 5001 if local
+const PORT = process.env.PORT || 5001;
 
 /* -------------------- MIDDLEWARE -------------------- */
 app.use(express.json());
@@ -16,22 +18,24 @@ let credData = null;
 /* -------------------- MONGODB CONNECTION -------------------- */
 console.log("🔄 Connecting to MongoDB...");
 
-mongoose
-  .connect(
-    "mongodb+srv://Hari:Hari123@cluster0.csaqusk.mongodb.net/passkey",
-    {
+// CRITICAL FIX: Use environment variable for the connection string
+const mongoURI = process.env.MONGO_URI;
+
+if (!mongoURI) {
+  console.error("❌ Error: MONGO_URI environment variable is not set.");
+} else {
+  mongoose
+    .connect(mongoURI, {
       serverSelectionTimeoutMS: 30000,
-      tls: true,
-      tlsAllowInvalidCertificates: true,
-    }
-  )
-  .then(async () => {
-    console.log("✅ MongoDB connected successfully");
-    await loadCredentials();
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message);
-  });
+    })
+    .then(async () => {
+      console.log("✅ MongoDB connected successfully");
+      await loadCredentials();
+    })
+    .catch((err) => {
+      console.error("❌ MongoDB connection failed:", err.message);
+    });
+}
 
 mongoose.connection.on("error", (err) => {
   console.error("❌ Mongoose runtime error:", err.message);
@@ -69,10 +73,10 @@ async function loadCredentials() {
       secure: true,
       auth: {
         user: credData.user,
-        pass: credData.pass, // GMAIL APP PASSWORD
+        pass: credData.pass,
       },
       tls: {
-        rejectUnauthorized: false, // IMPORTANT
+        rejectUnauthorized: false,
       },
     });
 
@@ -93,6 +97,7 @@ app.post("/sendmail", async (req, res) => {
 
   const results = [];
 
+  // Consider using Promise.all here for speed, but this loop works fine for now
   for (const email of emaillist) {
     try {
       await transporter.sendMail({
@@ -112,5 +117,5 @@ app.post("/sendmail", async (req, res) => {
 
 /* -------------------- START SERVER -------------------- */
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
