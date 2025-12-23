@@ -49,7 +49,7 @@ function App() {
 
     setStatus(true);
 
-   axios.post("https://bulk-mail-2-4jg0.onrender.com/sendmail", { msg, emaillist })
+   axios.post("https://bulk-mail-f0a6.onrender.com", { msg, emaillist })
       .then((response) => {
         if (response.data.success) {
           alert("Emails sent successfully!");
